@@ -1,0 +1,4 @@
+# Implements SRS general setup (Part 1 dependencies)
+# More libraries (Pandas, Scikit-learn, etc.) will be added in later milestones.
+
+Flask==2.3.3

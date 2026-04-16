@@ -1,0 +1,28 @@
+# Implements SRS general setup (version control exclusions)
+
+# Uploaded CSV data files (user data, not part of source code)
+# The /* pattern ignores folder contents but still allows .gitkeep inside
+uploads/*
+!uploads/.gitkeep
+
+# Trained ML model files
+models/*
+!models/.gitkeep
+
+# Exported result files
+exports/*
+!exports/.gitkeep
+
+# Python cache folders (auto-generated, not needed in git)
+__pycache__/
+*.pyc
+
+# Virtual environment folders (user's local Python setup)
+.venv/
+venv/
+
+# Pickle model files (binary, tracked via models/ exclusion above)
+*.pkl
+
+# VS Code editor settings (user-specific, not project files)
+.vscode/
