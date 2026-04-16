@@ -1,4 +1,7 @@
 # Implements SRS general setup (Part 1 dependencies)
-# More libraries (Pandas, Scikit-learn, etc.) will be added in later milestones.
+# Using >= constraints so the project works with Anaconda's pre-installed versions.
 
 Flask==2.3.3
+pandas>=2.0.3
+numpy>=1.24.3
+# Note: werkzeug is installed automatically with Flask — no need to list it separately.

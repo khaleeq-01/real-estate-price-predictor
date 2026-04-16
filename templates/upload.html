@@ -1,4 +1,5 @@
-<!-- Implements SRS FR-1 (File Upload) — Placeholder for Milestone 2 -->
+<!-- Implements SRS FR-1.1 (File Upload), FR-1.2 (Validation), FR-1.3 (Data Preview) -->
+<!-- Based on SDD Section 6.2.2 Upload Page Wireframe -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,13 +21,80 @@
         </ul>
     </nav>
 
-    <!-- Placeholder Content -->
-    <div class="placeholder">
-        <div class="card-icon">&#128193;</div>
-        <h2>Upload — Coming Soon</h2>
-        <p>This page will be implemented in Milestone 2.<br>
-           You will be able to upload a CSV file and preview your data here.</p>
-        <a href="/" class="btn-back">&#8592; Back to Home</a>
+    <div class="upload-container">
+
+        <h1 class="upload-title">&#128193; Upload Property Dataset</h1>
+
+        <!-- Flash Messages (success = green, error = red) -->
+        <!-- get_flashed_messages is a Flask built-in that retrieves all queued messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Upload Form -->
+        <!-- enctype="multipart/form-data" is required for file uploads to work -->
+        <form class="upload-form" method="POST" enctype="multipart/form-data">
+
+            <div class="file-input-area">
+                <label for="file" class="file-label">&#128193; Choose a CSV File</label>
+                <input type="file" id="file" name="file" accept=".csv" class="file-input">
+            </div>
+
+            <div class="requirements-note">
+                <strong>Requirements:</strong>
+                <ul>
+                    <li>Format: CSV only</li>
+                    <li>Maximum size: 10MB</li>
+                    <li>Minimum records: 100</li>
+                    <li>Required columns: <code>Location, Price, Area, Bedrooms, Bathrooms</code></li>
+                </ul>
+            </div>
+
+            <button type="submit" class="btn-upload">Upload and Analyze</button>
+
+        </form>
+
+        <!-- Data Preview Table — only rendered after a successful upload -->
+        {% if preview %}
+        <div class="preview-section">
+            <h2 class="preview-heading">
+                Data Preview
+                <span class="record-count">({{ record_count | format_number }} records total &mdash; showing first 20)</span>
+            </h2>
+
+            <div class="table-wrapper">
+                <table class="preview-table">
+                    <thead>
+                        <tr>
+                            {% for col in preview[0].keys() %}
+                                <th>{{ col }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in preview %}
+                        <tr>
+                            {% for col, val in row.items() %}
+                                {% if col == 'Price' %}
+                                    <td>{{ val | format_price }}</td>
+                                {% elif col == 'Area' %}
+                                    <td>{{ val | format_number }}</td>
+                                {% else %}
+                                    <td>{{ val }}</td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
     </div>
 
 </body>
