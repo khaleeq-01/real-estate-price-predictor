@@ -40,11 +40,7 @@
                 <p>Statistical analysis and visualizations for your uploaded dataset
                    &mdash; {{ stats.count | format_number }} properties loaded</p>
             </div>
-            <!-- Export button — placeholder, functionality added in Milestone 5 -->
-            <button class="btn-export" disabled
-                    title="Export feature is coming in Milestone 5">
-                &#8681; Export CSV
-            </button>
+            <a href="/export" class="btn-export">&#8681; Export CSV</a>
         </div>
 
         <!-- ── 4 Summary Stat Cards ───────────────────────────────── -->
@@ -201,13 +197,15 @@
 
         <!-- ── Export Section ─────────────────────────────────────────── -->
         <div class="export-section">
-            <button class="btn-export" disabled
-                    title="Export feature is coming in Milestone 5">
-                &#8681; Export CSV &nbsp;&mdash;&nbsp; Available in Milestone 5
-            </button>
+            <a href="/export" class="btn-export">&#8681; Export CSV</a>
         </div>
 
     </div>{# end .dashboard-container #}
+
+    <!-- Footer -->
+    <footer class="footer">
+        &copy; 2025 Khaleeq Ur Rehman &mdash; FYP Part 2 (Final), Islamia University Bahawalpur
+    </footer>
 
     <!-- ══════════════════════════════════════════════════════════
          Chart.js initialization

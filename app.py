@@ -1,12 +1,20 @@
 # Implements SRS UI-1 (Home Page), UI-2 (Upload Page),
-# UI-3 (Dashboard Page), UI-4 (Predict Page)
+# UI-3 (Dashboard Page), UI-4 (Predict Page), FR-5.1 (Export)
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+import os
+import csv
+import io
+from datetime import datetime
+
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
 from components.file_handler import FileHandler
 from components.property_dataset import PropertyDataset
 from components.data_analyzer import DataAnalyzer
 from components.visualizer import Visualizer
 from components.prediction_model import PredictionModel
+
+# Folder where exported CSV files are saved (git-ignored)
+EXPORTS_FOLDER = "exports"
 
 app = Flask(__name__)
 
@@ -275,6 +283,96 @@ def predict():
         has_age=has_age,
         result=result,
         form_data=form_data,
+    )
+
+
+@app.route("/export")
+def export():
+    """
+    Generate a 3-section analysis CSV and send it as a download (SRS FR-5.1).
+
+    send_file() explanation: Flask sends the saved file to the user's browser
+    as a download (Content-Disposition: attachment). The browser shows a
+    "Save file" dialog without reloading the current page.
+
+    CSV sections:
+      1. Summary Statistics  — price stats (mean, median, std, Q1, Q3, min, max)
+      2. Location Analysis   — per-location average, min, max, count
+      3. Raw Data            — every original row from the uploaded CSV
+    """
+    # Step 1: Ensure a file has been uploaded
+    filename = session.get("filename")
+    if not filename:
+        flash("Please upload a CSV file first.", "error")
+        return redirect(url_for("upload"))
+
+    # Step 2: Load the dataset
+    handler = FileHandler()
+    dataset = PropertyDataset()
+    filepath = handler.get_file_path(filename)
+
+    if not dataset.load_csv(filepath):
+        flash("Could not load the dataset. Please upload again.", "error")
+        return redirect(url_for("upload"))
+
+    # Step 3: Run analysis for the summary sections
+    analyzer      = DataAnalyzer(dataset.dataframe)
+    stats         = analyzer.calculate_statistics()
+    location_data = analyzer.location_analysis()
+
+    # Step 4: Build the entire CSV content in memory (StringIO = in-RAM text file)
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # ── Section 1: Summary Statistics ────────────────────────────────────────
+    writer.writerow(["SECTION: Summary Statistics"])
+    writer.writerow(["Metric", "Value"])
+    writer.writerow(["Total Properties",        stats["count"]])
+    writer.writerow(["Mean Price (PKR)",         stats["mean"]])
+    writer.writerow(["Median Price (PKR)",       stats["median"]])
+    writer.writerow(["Std Deviation (PKR)",      stats["std"]])
+    writer.writerow(["Min Price (PKR)",          stats["min"]])
+    writer.writerow(["Max Price (PKR)",          stats["max"]])
+    writer.writerow(["Q1 - 25th Pctile (PKR)",  stats["q1"]])
+    writer.writerow(["Q3 - 75th Pctile (PKR)",  stats["q3"]])
+    writer.writerow([])  # blank line separates sections
+
+    # ── Section 2: Location Analysis ─────────────────────────────────────────
+    writer.writerow(["SECTION: Location Analysis"])
+    writer.writerow(["Location", "Avg Price (PKR)", "Min Price (PKR)",
+                     "Max Price (PKR)", "Property Count"])
+    for loc in location_data:
+        writer.writerow([
+            loc["location"],
+            loc["avg_price"],
+            loc["min_price"],
+            loc["max_price"],
+            loc["count"],
+        ])
+    writer.writerow([])  # blank line separates sections
+
+    # ── Section 3: Raw Data ───────────────────────────────────────────────────
+    writer.writerow(["SECTION: Raw Data"])
+    # to_csv() returns the full DataFrame as a CSV string — write it directly
+    output.write(dataset.dataframe.to_csv(index=False))
+
+    # Step 5: Save the built CSV to the exports/ folder
+    os.makedirs(EXPORTS_FOLDER, exist_ok=True)
+    export_filename = f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    export_path     = os.path.join(EXPORTS_FOLDER, export_filename)
+
+    with open(export_path, "w", encoding="utf-8") as f:
+        f.write(output.getvalue())
+
+    # Step 6: Flash message — stored in session, shown on next page navigation
+    flash(f"Export complete \u2014 {export_filename} downloaded.", "success")
+
+    # Step 7: Send the file to the browser as a download
+    return send_file(
+        os.path.abspath(export_path),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=export_filename,
     )
 
 

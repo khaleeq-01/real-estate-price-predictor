@@ -824,3 +824,35 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+
+/* ═══════════════════════════════════════════════════════════
+   SHARED FOOTER  (all pages)
+   ═══════════════════════════════════════════════════════════ */
+
+.footer {
+    text-align: center;
+    padding: 20px 16px;
+    font-size: 0.8rem;
+    color: #aaa;
+    background-color: #f4f6f9;
+    border-top: 1px solid #e5e8eb;
+    margin-top: 48px;
+}
+
+/* ── Back to Dashboard link (predict results panel) ─────── */
+.btn-back-dashboard {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 9px 20px;
+    background-color: #f0f4f8;
+    color: #2c3e50;
+    border: 1px solid #d0d7de;
+    border-radius: 4px;
+    font-size: 0.88rem;
+    text-decoration: none;
+}
+
+.btn-back-dashboard:hover {
+    background-color: #e2e8f0;
+}
