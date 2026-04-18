@@ -4,6 +4,8 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from components.file_handler import FileHandler
 from components.property_dataset import PropertyDataset
+from components.data_analyzer import DataAnalyzer
+from components.visualizer import Visualizer
 
 app = Flask(__name__)
 
@@ -108,8 +110,54 @@ def upload():
 
 @app.route("/dashboard")
 def dashboard():
-    """Render the dashboard page (placeholder — full logic in Milestone 3)."""
-    return render_template("dashboard.html")
+    """
+    Load the uploaded dataset, run analysis, generate chart data,
+    and render the full dashboard page (SRS FR-2, FR-3).
+
+    Flow:
+    1. Check session for an uploaded filename — redirect to /upload if missing.
+    2. Load the CSV into a DataFrame via PropertyDataset.
+    3. Run DataAnalyzer: statistics, location analysis, correlations.
+    4. Run Visualizer: bar chart, scatter plot, pie chart data.
+    5. Pass everything to dashboard.html.
+    """
+    # Step 1: Ensure a file was uploaded in this session
+    filename = session.get("filename")
+    if not filename:
+        flash("Please upload a CSV file first.", "error")
+        return redirect(url_for("upload"))
+
+    # Step 2: Load the saved CSV file
+    handler = FileHandler()
+    dataset = PropertyDataset()
+    filepath = handler.get_file_path(filename)
+
+    if not dataset.load_csv(filepath):
+        flash("Could not load your file. Please upload it again.", "error")
+        session.pop("filename", None)
+        return redirect(url_for("upload"))
+
+    # Step 3: Statistical analysis
+    analyzer     = DataAnalyzer(dataset.dataframe)
+    stats        = analyzer.calculate_statistics()
+    location_data = analyzer.location_analysis()
+    correlations = analyzer.correlation_analysis()
+
+    # Step 4: Chart data (Python dicts — Jinja2 tojson filter converts to JS)
+    visualizer    = Visualizer(dataset.dataframe)
+    bar_chart     = visualizer.generate_bar_chart()
+    scatter_chart = visualizer.generate_scatter_plot()
+    pie_chart     = visualizer.generate_pie_chart()
+
+    return render_template(
+        "dashboard.html",
+        stats=stats,
+        location_data=location_data,
+        correlations=correlations,
+        bar_chart=bar_chart,
+        scatter_chart=scatter_chart,
+        pie_chart=pie_chart,
+    )
 
 
 @app.route("/predict")

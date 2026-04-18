@@ -76,7 +76,7 @@ project/
 ## Milestones
 - [x] Milestone 1: Flask skeleton + folder structure + home page
 - [x] Milestone 2: File upload + validation (FR-1)
-- [ ] Milestone 3: Analysis + visualization dashboard (FR-2, FR-3)
+- [x] Milestone 3: Analysis + visualization dashboard (FR-2, FR-3)
 - [ ] Milestone 4: ML model training + prediction (FR-4)
 - [ ] Milestone 5: Export + polish + README (FR-5)
 

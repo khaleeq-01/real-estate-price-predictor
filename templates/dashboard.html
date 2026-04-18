@@ -1,4 +1,4 @@
-<!-- Implements SRS FR-2 (Analysis), FR-3 (Visualization) — Placeholder for Milestone 3 -->
+<!-- Implements SRS FR-2 (Statistical Analysis), FR-3 (Visualization) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard | Real Estate Prediction</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Chart.js CDN: JavaScript library jo browser mein charts draw karta hai -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
@@ -20,14 +22,277 @@
         </ul>
     </nav>
 
-    <!-- Placeholder Content -->
-    <div class="placeholder">
-        <div class="card-icon">&#128202;</div>
-        <h2>Dashboard — Coming Soon</h2>
-        <p>This page will be implemented in Milestone 3.<br>
-           Charts, statistics, and location analysis will appear here.</p>
-        <a href="/" class="btn-back">&#8592; Back to Home</a>
-    </div>
+    <div class="dashboard-container">
+
+        <!-- Flash messages (shown if analysis errors occur) -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- ── Page Header ─────────────────────────────────────────── -->
+        <div class="dash-header">
+            <div>
+                <h1>&#128202; Analysis Dashboard</h1>
+                <p>Statistical analysis and visualizations for your uploaded dataset
+                   &mdash; {{ stats.count | format_number }} properties loaded</p>
+            </div>
+            <!-- Export button — placeholder, functionality added in Milestone 5 -->
+            <button class="btn-export" disabled
+                    title="Export feature is coming in Milestone 5">
+                &#8681; Export CSV
+            </button>
+        </div>
+
+        <!-- ── 4 Summary Stat Cards ───────────────────────────────── -->
+        <div class="stats-cards-row">
+            <div class="stat-card stat-card-blue">
+                <div class="stat-label">Total Properties</div>
+                <div class="stat-value">{{ stats.count | format_number }}</div>
+            </div>
+            <div class="stat-card stat-card-green">
+                <div class="stat-label">Average Price</div>
+                <div class="stat-value">{{ stats.mean | format_price }}</div>
+            </div>
+            <div class="stat-card stat-card-orange">
+                <div class="stat-label">Min Price</div>
+                <div class="stat-value">{{ stats.min | format_price }}</div>
+            </div>
+            <div class="stat-card stat-card-red">
+                <div class="stat-label">Max Price</div>
+                <div class="stat-value">{{ stats.max | format_price }}</div>
+            </div>
+        </div>
+
+        <!-- ── Statistical Summary + Correlation Analysis ──────────── -->
+        <div class="analysis-row">
+
+            <!-- Statistical Summary (FR-2.1) -->
+            <div class="analysis-card">
+                <h3>&#128200; Price Statistics</h3>
+                <table class="stat-table">
+                    <tr>
+                        <td>Mean <span class="stat-hint">(average)</span></td>
+                        <td>{{ stats.mean | format_price }}</td>
+                    </tr>
+                    <tr>
+                        <td>Median <span class="stat-hint">(middle value)</span></td>
+                        <td>{{ stats.median | format_price }}</td>
+                    </tr>
+                    <tr>
+                        <td>Std Deviation <span class="stat-hint">(price spread)</span></td>
+                        <td>{{ stats.std | format_price }}</td>
+                    </tr>
+                    <tr>
+                        <td>Q1 <span class="stat-hint">(25th percentile)</span></td>
+                        <td>{{ stats.q1 | format_price }}</td>
+                    </tr>
+                    <tr>
+                        <td>Q3 <span class="stat-hint">(75th percentile)</span></td>
+                        <td>{{ stats.q3 | format_price }}</td>
+                    </tr>
+                    <tr>
+                        <td>Min Price</td>
+                        <td>{{ stats.min | format_price }}</td>
+                    </tr>
+                    <tr>
+                        <td>Max Price</td>
+                        <td>{{ stats.max | format_price }}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Correlation Analysis (FR-2.3) -->
+            <div class="analysis-card">
+                <h3>&#128279; Price Correlations</h3>
+                <p class="corr-hint">
+                    How strongly each feature is linked to Price.<br>
+                    +1 = perfect positive link &nbsp;|&nbsp; 0 = no link
+                </p>
+                {% if correlations %}
+                <table class="corr-table">
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Correlation</th>
+                            <th>Strength</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for feature, corr in correlations.items() %}
+                        <tr>
+                            <td>{{ feature }}</td>
+                            <td>{{ corr }}</td>
+                            <td>
+                                {# |abs is a built-in Jinja2 filter — returns absolute value #}
+                                {% if (corr | abs) > 0.7 %}
+                                    <span class="corr-badge badge-strong">Strong</span>
+                                {% elif (corr | abs) > 0.4 %}
+                                    <span class="corr-badge badge-moderate">Moderate</span>
+                                {% else %}
+                                    <span class="corr-badge badge-weak">Weak</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="no-data-msg">No numeric features found for correlation.</p>
+                {% endif %}
+            </div>
+
+        </div>
+
+        <!-- ── Charts: Bar (2/3 width) + Pie (1/3 width) ──────────── -->
+        <div class="chart-row">
+
+            <!-- Bar Chart: Top 10 Locations by Average Price (FR-3.1) -->
+            <div class="chart-container">
+                <h3>&#128205; Top 10 Locations by Average Price</h3>
+                <canvas id="barChart"></canvas>
+            </div>
+
+            <!-- Pie Chart: Property Type Distribution (FR-3.3) -->
+            <div class="chart-container">
+                <h3>&#127963; Property Type Distribution</h3>
+                <canvas id="pieChart"></canvas>
+            </div>
+
+        </div>
+
+        <!-- ── Scatter Plot: Price vs Area (full width) (FR-3.2) ────── -->
+        <div class="chart-container chart-full">
+            <h3>&#11096; Price vs Area &mdash; Scatter Plot</h3>
+            <canvas id="scatterChart"></canvas>
+        </div>
+
+        <!-- ── Location Analysis Table (FR-2.2) ─────────────────────── -->
+        <div class="analysis-card">
+            <h3>&#128205; Location Analysis</h3>
+            <div class="table-wrapper">
+                <table class="preview-table">
+                    <thead>
+                        <tr>
+                            <th>Location</th>
+                            <th>Average Price</th>
+                            <th>Min Price</th>
+                            <th>Max Price</th>
+                            <th>Properties</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for loc in location_data %}
+                        <tr>
+                            <td>{{ loc.location }}</td>
+                            <td>{{ loc.avg_price | format_price }}</td>
+                            <td>{{ loc.min_price | format_price }}</td>
+                            <td>{{ loc.max_price | format_price }}</td>
+                            <td>{{ loc.count | format_number }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ── Export Section ─────────────────────────────────────────── -->
+        <div class="export-section">
+            <button class="btn-export" disabled
+                    title="Export feature is coming in Milestone 5">
+                &#8681; Export CSV &nbsp;&mdash;&nbsp; Available in Milestone 5
+            </button>
+        </div>
+
+    </div>{# end .dashboard-container #}
+
+    <!-- ══════════════════════════════════════════════════════════
+         Chart.js initialization
+         ──────────────────────────────────────────────────────────
+         How it works:
+           1. Jinja2's  | tojson  filter converts the Python dict
+              passed from app.py into a valid JavaScript object.
+           2. new Chart(canvas, config)  draws the chart on that
+              <canvas> element.
+         ══════════════════════════════════════════════════════════ -->
+    <script>
+        // ── Bar Chart: Top 10 Locations by Average Price ────────────────
+        const barData = {{ bar_chart | tojson }};
+        new Chart(document.getElementById('barChart'), {
+            type: 'bar',
+            data: barData,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            // Show value in millions in the hover tooltip
+                            label: ctx => (ctx.parsed.y / 1000000).toFixed(2) + 'M PKR'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        ticks: {
+                            // Show "12.5M" instead of raw large numbers
+                            callback: v => (v / 1000000).toFixed(1) + 'M'
+                        }
+                    },
+                    x: {
+                        ticks: { maxRotation: 40 }
+                    }
+                }
+            }
+        });
+
+        // ── Pie Chart: Property Type Distribution ───────────────────────
+        const pieData = {{ pie_chart | tojson }};
+        new Chart(document.getElementById('pieChart'), {
+            type: 'pie',
+            data: pieData,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // ── Scatter Plot: Price vs Area ─────────────────────────────────
+        const scatterData = {{ scatter_chart | tojson }};
+        new Chart(document.getElementById('scatterChart'), {
+            type: 'scatter',
+            data: scatterData,
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx =>
+                                `Area: ${ctx.parsed.x} sqft  |  Price: ${(ctx.parsed.y / 1000000).toFixed(2)}M PKR`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Area (sq ft)' }
+                    },
+                    y: {
+                        title: { display: true, text: 'Price (PKR)' },
+                        ticks: {
+                            callback: v => (v / 1000000).toFixed(1) + 'M'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
 
 </body>
 </html>
