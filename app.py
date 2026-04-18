@@ -6,6 +6,7 @@ from components.file_handler import FileHandler
 from components.property_dataset import PropertyDataset
 from components.data_analyzer import DataAnalyzer
 from components.visualizer import Visualizer
+from components.prediction_model import PredictionModel
 
 app = Flask(__name__)
 
@@ -103,7 +104,19 @@ def upload():
         # Step 6: Prepare preview data for the template
         preview = dataset.get_preview(20)
         record_count = dataset.record_count
-        flash(f"File uploaded successfully! {record_count:,} records loaded.", "success")
+
+        # Step 6b: Auto-train the ML model (best-effort — upload still succeeds
+        # even if training fails, so the try/except swallows any errors here).
+        success_msg = f"File uploaded successfully! {record_count:,} records loaded."
+        try:
+            pred_model = PredictionModel()
+            train_result = pred_model.train(dataset.dataframe)
+            pred_model.save_model()
+            success_msg += f" Model trained \u2014 R\u00b2\u2009=\u2009{train_result['r2_score']}."
+        except Exception:
+            pass  # Training failure is non-blocking
+
+        flash(success_msg, "success")
 
     return render_template("upload.html", preview=preview, record_count=record_count)
 
@@ -160,10 +173,109 @@ def dashboard():
     )
 
 
-@app.route("/predict")
+@app.route("/predict", methods=["GET", "POST"])
 def predict():
-    """Render the predict page (placeholder — full logic in Milestone 4)."""
-    return render_template("predict.html")
+    """
+    GET:  Load trained model, populate location dropdown, render empty form.
+    POST: Read form inputs, validate, predict price, render results.
+
+    Auto-train: if no model files exist but a CSV is in session, train first.
+    If neither model nor CSV exists, redirect to /upload.
+    """
+    pred_model = PredictionModel()
+
+    # ── Ensure model is loaded (train on-the-fly if needed) ──────────────────
+    if not pred_model.load_model():
+        filename = session.get("filename")
+        if not filename:
+            flash("Please upload a CSV file first to train the model.", "error")
+            return redirect(url_for("upload"))
+
+        # Auto-train from the file already in session
+        handler  = FileHandler()
+        dataset  = PropertyDataset()
+        filepath = handler.get_file_path(filename)
+
+        if not dataset.load_csv(filepath):
+            flash("Could not reload your file. Please upload again.", "error")
+            return redirect(url_for("upload"))
+
+        try:
+            pred_model.train(dataset.dataframe)
+            pred_model.save_model()
+        except Exception:
+            flash("Model training failed. Please upload your CSV again.", "error")
+            return redirect(url_for("upload"))
+
+    locations = pred_model.get_locations()
+    metadata  = pred_model.metadata
+    has_age   = "Age" in pred_model.feature_cols
+
+    # ── GET: render empty form ────────────────────────────────────────────────
+    if request.method == "GET":
+        return render_template(
+            "predict.html",
+            locations=locations,
+            metadata=metadata,
+            has_age=has_age,
+            result=None,
+            form_data={},
+        )
+
+    # ── POST: validate inputs and run prediction ──────────────────────────────
+    # Keep raw strings so we can re-populate the form on validation failure
+    form_data = {
+        "Location":  request.form.get("Location",  ""),
+        "Area":      request.form.get("Area",      ""),
+        "Bedrooms":  request.form.get("Bedrooms",  ""),
+        "Bathrooms": request.form.get("Bathrooms", ""),
+        "Age":       request.form.get("Age",       "0"),
+    }
+
+    # Convert to correct Python types for the model
+    try:
+        property_dict = {
+            "Location":  form_data["Location"],
+            "Area":      float(form_data["Area"]),
+            "Bedrooms":  int(form_data["Bedrooms"]),
+            "Bathrooms": int(form_data["Bathrooms"]),
+            "Age":       int(form_data["Age"] or 0),
+        }
+    except (ValueError, TypeError):
+        flash("Please enter valid numbers for Area, Bedrooms, and Bathrooms.", "error")
+        return render_template(
+            "predict.html",
+            locations=locations,
+            metadata=metadata,
+            has_age=has_age,
+            result=None,
+            form_data=form_data,
+        )
+
+    # Validate ranges and location
+    is_valid, errors = pred_model.validate_inputs(property_dict)
+    if not is_valid:
+        for error in errors:
+            flash(error, "error")
+        return render_template(
+            "predict.html",
+            locations=locations,
+            metadata=metadata,
+            has_age=has_age,
+            result=None,
+            form_data=form_data,
+        )
+
+    # Run prediction and render results
+    result = pred_model.predict(property_dict)
+    return render_template(
+        "predict.html",
+        locations=locations,
+        metadata=metadata,
+        has_age=has_age,
+        result=result,
+        form_data=form_data,
+    )
 
 
 # This block runs only when you execute app.py directly (not when imported).

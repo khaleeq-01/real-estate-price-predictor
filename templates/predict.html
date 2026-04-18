@@ -1,10 +1,10 @@
-<!-- Implements SRS FR-4 (Price Prediction) — Placeholder for Milestone 4 -->
+<!-- Implements SRS FR-4 (Machine Learning — Price Prediction) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Predict | Real Estate Prediction</title>
+    <title>Predict Price | Real Estate Prediction</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -20,14 +20,199 @@
         </ul>
     </nav>
 
-    <!-- Placeholder Content -->
-    <div class="placeholder">
-        <div class="card-icon">&#128302;</div>
-        <h2>Predict — Coming Soon</h2>
-        <p>This page will be implemented in Milestone 4.<br>
-           Enter property details and get a price prediction here.</p>
-        <a href="/" class="btn-back">&#8592; Back to Home</a>
-    </div>
+    <div class="predict-container">
+
+        <!-- Flash messages (validation errors, model errors) -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- Page header -->
+        <div class="predict-header">
+            <h1>&#128302; Predict Property Price</h1>
+            <p>Enter property details below and the trained model will estimate the price.
+               &mdash; Model trained on
+               <strong>{{ metadata.get("total_records", "?") | format_number }}</strong>
+               properties across
+               <strong>{{ metadata.get("n_locations", "?") }}</strong> locations.
+            </p>
+        </div>
+
+        <!-- Two-column layout: form (left) + results (right) -->
+        <div class="predict-layout">
+
+            <!-- ── Input Form ──────────────────────────────────────── -->
+            <div class="predict-form-card">
+                <h2>&#128221; Property Details</h2>
+
+                <form method="POST" action="/predict">
+
+                    <!-- Location dropdown -->
+                    <div class="form-group">
+                        <label for="Location">Location</label>
+                        <select id="Location" name="Location"
+                                class="form-control" required>
+                            <option value="" disabled
+                                {% if not form_data.get("Location") %}selected{% endif %}>
+                                Select a location&hellip;
+                            </option>
+                            {% for loc in locations %}
+                            <option value="{{ loc }}"
+                                {% if form_data.get("Location") == loc %}selected{% endif %}>
+                                {{ loc }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Area -->
+                    <div class="form-group">
+                        <label for="Area">Area <span class="field-unit">(sq ft &mdash; 100 to 10,000)</span></label>
+                        <input type="number" id="Area" name="Area"
+                               class="form-control"
+                               min="100" max="10000" step="1"
+                               placeholder="e.g. 1200"
+                               value="{{ form_data.get('Area', '') }}"
+                               required>
+                    </div>
+
+                    <!-- Bedrooms -->
+                    <div class="form-group">
+                        <label for="Bedrooms">Bedrooms</label>
+                        <select id="Bedrooms" name="Bedrooms"
+                                class="form-control" required>
+                            {% for i in range(1, 11) %}
+                            <option value="{{ i }}"
+                                {% if form_data.get("Bedrooms", "") | string == i | string %}selected{% endif %}>
+                                {{ i }} Bedroom{{ "s" if i > 1 else "" }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Bathrooms -->
+                    <div class="form-group">
+                        <label for="Bathrooms">Bathrooms</label>
+                        <select id="Bathrooms" name="Bathrooms"
+                                class="form-control" required>
+                            {% for i in range(1, 9) %}
+                            <option value="{{ i }}"
+                                {% if form_data.get("Bathrooms", "") | string == i | string %}selected{% endif %}>
+                                {{ i }} Bathroom{{ "s" if i > 1 else "" }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Age — only shown if model was trained with Age feature -->
+                    {% if has_age %}
+                    <div class="form-group">
+                        <label for="Age">Property Age <span class="field-unit">(years &mdash; 0 to 100)</span></label>
+                        <input type="number" id="Age" name="Age"
+                               class="form-control"
+                               min="0" max="100" step="1"
+                               placeholder="e.g. 5"
+                               value="{{ form_data.get('Age', '0') }}"
+                               required>
+                    </div>
+                    {% endif %}
+
+                    <button type="submit" class="btn-predict">
+                        Predict Price &rarr;
+                    </button>
+
+                </form>
+            </div>{# end .predict-form-card #}
+
+            <!-- ── Results Panel ───────────────────────────────────── -->
+            <div class="result-card">
+                <h2>&#128200; Prediction Result</h2>
+
+                {% if result %}
+                {# ── Result is available: show prediction ── #}
+
+                <!-- Large price display -->
+                <div class="result-price-block">
+                    <div class="result-price-label">Estimated Market Price</div>
+                    <div class="result-price">
+                        {{ result.predicted_price | format_number }}
+                        <span class="result-price-currency">PKR</span>
+                    </div>
+                </div>
+
+                <!-- Detailed breakdown table -->
+                <table class="result-meta">
+                    <tr>
+                        <td>Price Range</td>
+                        <td>
+                            {{ result.price_lower | format_price }}
+                            &ndash;
+                            {{ result.price_upper | format_price }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Confidence</td>
+                        <td>
+                            {% if result.confidence == "High" %}
+                                <span class="confidence-badge badge-high">&#10003; High</span>
+                            {% elif result.confidence == "Medium" %}
+                                <span class="confidence-badge badge-medium">&#9888; Medium</span>
+                            {% else %}
+                                <span class="confidence-badge badge-low">&#9888; Low</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Model R&sup2; Score</td>
+                        <td>{{ result.r2_score }}
+                            <span class="meta-hint">(1.0 = perfect)</span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Mean Abs. Error</td>
+                        <td>{{ result.mae | format_price }}</td>
+                    </tr>
+                    <tr>
+                        <td>Model Trained</td>
+                        <td>{{ result.training_date }}</td>
+                    </tr>
+                </table>
+
+                <!-- Explainer note for beginner readers -->
+                <p class="result-explainer">
+                    <strong>Price Range</strong> = &plusmn;10&nbsp;% of the estimate &mdash;
+                    actual market price typically falls within this band.<br>
+                    <strong>R&sup2;</strong> tells how well the model fits the data.
+                    Above 0.80 is considered good for real estate.
+                </p>
+
+                {% else %}
+                {# ── No result yet: show waiting state ── #}
+                <div class="result-waiting">
+                    <div class="result-waiting-icon">&#128302;</div>
+                    <p>Fill in the property details on the left<br>
+                       and click <strong>Predict Price</strong> to see the estimate.</p>
+                </div>
+                {% endif %}
+
+            </div>{# end .result-card #}
+
+        </div>{# end .predict-layout #}
+
+        <!-- Model info footer strip -->
+        <div class="model-info-strip">
+            <span>&#128295; Model info &mdash;</span>
+            <span>Algorithm: <strong>Linear Regression</strong></span>
+            <span>&bull; Features: <strong>{{ metadata.get("feature_cols", []) | join(", ") }}</strong></span>
+            <span>&bull; Training records: <strong>{{ metadata.get("train_size", "?") | format_number }}</strong></span>
+            <span>&bull; Test records: <strong>{{ metadata.get("test_size", "?") | format_number }}</strong></span>
+        </div>
+
+    </div>{# end .predict-container #}
 
 </body>
 </html>
